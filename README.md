@@ -36,52 +36,95 @@
 
 ---
 
+## Architettura e Relazione con `energy-inator`
+
+`nmr-inator` è progettato per operare in stretta sinergia con il framework sibling [**energy-inator**](https://github.com/sirfilips/energy-inator):
+
+```mermaid
+flowchart LR
+    subgraph E["energy-inator"]
+        RDKit["RDKit ETKDGv3"] --> MMFF["Rilassamento MMFF94 / xTB"]
+        MMFF --> Opt["Ottimizzazione DFT Psi4"]
+        Opt --> Boltz["Distribuzione Popolazioni di Boltzmann P_k"]
+    end
+
+    subgraph N["nmr-inator"]
+        Boltz --> EnsNMR["1H & 13C NMR: Medie Ponderate & 3D Karplus"]
+        Boltz --> EnsIR["IR: Hessiana Psi4 & Sovrapposizione I(v) = Sum P_k I_k"]
+        Single3D["Singolo File 3D / Conformero Unico"] --> DirectCalc["Predizione Diretta Standalone"]
+    end
+```
+
+### Gestione della Dipendenza
+1. **Installazione Automatica da GitHub**: `energyinator` è formalmente dichiarato in `pyproject.toml` come dipendenza remota (`energyinator @ git+https://github.com/sirfilips/energy-inator.git`). Durante una nuova installazione pulita (`pip install -e .`), `pip` installerà automaticamente `energy-inator`.
+2. **Ambiente di Sviluppo Condiviso (Sviluppo Locale)**: Se hai clonato `energy-inator` nella stessa cartella madre (cartella adiacente `../energy-inator`), puoi condividere lo stesso ambiente Python o installarlo in modalità editable con:
+   ```bash
+   pip install -e ../energy-inator
+   ```
+3. **Funzionamento Modulare**:
+   * **Modalità Singola**: Opera in modo completamente autonomo con RDKit e Psi4 per qualsiasi singolo conformero o file `.xyz`/`.mol` 3D.
+   * **Modalità Completa**: Invoca il motore di ricerca conformazionale e termodinamica di `energy-inator` per generare lo spettro ponderato su Boltzmann.
+
+---
+
 ## Installazione e Setup
 
-Il software condivide l'ambiente Conda/Python di `energy-inator`:
+### 1. Prerequisiti: Ambiente Conda con Psi4
+Poiché il motore quantistico **Psi4** è distribuito come pacchetto binario multipiattaforma ottimizzato con librerie C++, è consigliato creare un ambiente Conda dedicato (oppure utilizzare l'ambiente Conda già creato per `energy-inator`):
 
 ```bash
-# Entra nella directory del progetto
+# Crea un ambiente Conda con Python, Psi4 e RDKit
+conda create -n nmrinator -c conda-forge psi4 rdkit python=3.10
+conda activate nmrinator
+```
+
+### 2. Installazione di NMR-INATOR
+Clona il repository e installalo in modalità modificabile (editable):
+
+```bash
+git clone https://github.com/sirfilips/nmr-inator.git
 cd nmr-inator
 
-# Installa nmr-inator in modalità modificabile (editable)
-..\energy-inator\.venv\python.exe -m pip install -e .
+# Installa tutte le dipendenze (incluso energy-inator da GitHub)
+pip install -e .
 ```
 
 ---
 
 ## Utilizzo da Riga di Comando (CLI)
 
-```bash
-# 1. Calcolo veloce in modalità singola (1H e 13C NMR su etanolo)
-python -m nmrinator.cli --smiles "CCO" --mode single --no-ir -o output_etanolo
+Il pacchetto espone l'entrypoint da terminale `nmrinator` (o `python -m nmrinator.cli`):
 
-# 2. Calcolo completo con IR (Psi4) e NMR su singolo conformero
+```bash
+# 1. Calcolo rapido in modalità singola (1H e 13C NMR su etanolo)
+python -m nmrinator.cli --smiles "CCO" --mode single --no-ir
+
+# 2. Calcolo completo con IR quantistico (Psi4 B3LYP/6-31G*) e NMR su singolo conformero
 python -m nmrinator.cli --smiles "CC(=O)C" --mode single --method b3lyp --basis 6-31G(d)
 
-# 3. Calcolo completo con Ensemble Boltzmann di conformeri (Energyinator)
+# 3. Calcolo ensemble completo di Boltzmann (richiede energy-inator)
 python -m nmrinator.cli --smiles "CCCC" --mode full --confs 30 --top-confs 3
 
-# 4. Input da file XYZ 3D già noto
+# 4. Input diretto da file di coordinate 3D (.xyz o .mol)
 python -m nmrinator.cli --xyz molecola.xyz --mode single
 ```
+
+Tutti i risultati, file `.jdx`, tabelle `.csv` e report `.json` vengono salvati automaticamente all'interno della cartella `output/session_YYYYMMDD_HHMMSS_<formula>/`.
 
 ---
 
 ## Interfaccia Web Interattiva (Streamlit GUI)
 
-Per avviare la GUI con un click su Windows:
-* Fare doppio click sul file **`avvia_gui.bat`**
+Per avviare lo Studio Spettroscopico:
+* **Windows (1-Click)**: Doppio clic sul file `avvia_gui.bat` (rileva automaticamente l'ambiente virtuale locale `.venv`, l'ambiente adiacente `..\energy-inator\.venv` o l'ambiente Conda attivo).
+* **Da Terminale**:
+  ```bash
+  streamlit run gui/app_gui.py
+  ```
 
-Oppure da terminale:
-```bash
-..\energy-inator\.venv\python.exe -m streamlit run gui\app_gui.py
-```
-
-La GUI include:
-* Disegno della struttura 2D con **Ketcher** o inserimento SMILES / upload file (.xyz, .mol, .sdf).
-* **Console di Avanzamento in Tempo Reale** con pulsante **STOP** per interruzione immediata.
-* **Archiviazione Permanente delle Sessioni**: salvataggio automatico in `output/session_YYYYMMDD_HHMMSS_<formula>/` con ripristino istantaneo di grafici, tabelle e log dal pannello laterale *Sessioni Archiviate*.
-* Grafici interattivi **Plotly** per ¹H NMR, ¹³C NMR e Spettro IR.
-* Zoom, ispezione dei picchi e tabella dei multipletti con assegnazione atomica.
-* Pulsanti di download istantaneo dei file grafici ad alta risoluzione (**PNG, SVG**) e formati standard interoperabili (**JCAMP-DX**, **CSV** e **JSON**).
+Funzionalità dell'interfaccia:
+* **Editor Molecolare 2D (Ketcher)**: Disegna la molecola in tempo reale o seleziona un template.
+* **Console di Avanzamento in Tempo Reale**: Tracciamento passo-passo del calcolo quantistico con pulsante **STOP** per interruzione immediata senza bloccare il server.
+* **Archivio Sessioni**: Esplora e ricarica con un click le sessioni precedenti salvate nella cartella `output/`.
+* **Spettri Interattivi Plotly**: Zoom, ispezione picchi e tabelle dei segnali per ¹H NMR, ¹³C NMR e IR (commutabile tra % Trasmittanza e Assorbanza).
+* **Download Standard e Grafici**: Esportazione istantanea in **JCAMP-DX** (`.jdx`), **CSV**, **JSON**, e grafici ad alta risoluzione (**PNG**, **SVG**).

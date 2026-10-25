@@ -153,8 +153,11 @@ def run_nmrinator(config: SpectraConfig) -> SpectraResult:
             from energyinator.pipeline import run_pipeline as run_energyinator
         except ImportError:
             raise ImportError(
-                "Il pacchetto 'energyinator' non è installato nell'ambiente Python. "
-                "Installa la cartella 'energy-inator' con: pip install -e ../energy-inator"
+                "Il pacchetto 'energyinator' è richiesto per la Modalità Completa (Ensemble Boltzmann).\n"
+                "Puoi installarlo direttamente da GitHub con:\n"
+                "    pip install git+https://github.com/sirfilips/energy-inator.git\n"
+                "oppure in locale se hai clonato il repository adiacente con:\n"
+                "    pip install -e ../energy-inator"
             )
 
         logger.info(f"Generazione ed esplorazione conformazionale con energy-inator (N={config.n_conformers})...")
