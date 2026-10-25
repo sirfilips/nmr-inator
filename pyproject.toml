@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nmrinator"
+version = "0.1.0"
+authors = [
+    { name = "Filippo Zanardi" }
+]
+description = "Quantum and Ensemble-Averaged NMR (1H, 13C) and IR Spectroscopy Prediction using Psi4, RDKit, and Energyinator"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = [
+    "rdkit>=2023.03",
+    "numpy>=1.23.0",
+    "scipy>=1.10.0",
+    "pandas>=1.5.0",
+    "plotly>=5.14.0",
+    "streamlit>=1.25.0",
+    "streamlit-ketcher>=0.0.1",
+    "kaleido>=1.0.0",
+    "requests>=2.28.0",
+    "tqdm>=4.64.0"
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=7.0.0"
+]
+
+[project.scripts]
+nmrinator = "nmrinator.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["nmrinator*"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+
