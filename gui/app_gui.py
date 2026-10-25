@@ -329,6 +329,10 @@ def main():
     # Initialize persistent session state for active molecule
     if "active_smiles" not in st.session_state:
         st.session_state["active_smiles"] = "CCO"
+    if "last_synced_smiles" not in st.session_state:
+        st.session_state["last_synced_smiles"] = "CCO"
+    if "smiles_text_field" not in st.session_state:
+        st.session_state["smiles_text_field"] = "CCO"
     if "ketcher_version" not in st.session_state:
         st.session_state["ketcher_version"] = 0
     if "active_proc" not in st.session_state:
@@ -486,38 +490,66 @@ def main():
             smiles_input = "CCO"
 
     elif input_method == "Stringa SMILES":
-        col1, col2 = st.columns([3, 1])
+        col1, col2 = st.columns([2.6, 1.4])
+        
+        current_active = st.session_state.get("active_smiles", "CCO")
+        if "smiles_text_field" not in st.session_state or st.session_state.get("last_synced_smiles") != current_active:
+            st.session_state["smiles_text_field"] = current_active
+            st.session_state["last_synced_smiles"] = current_active
+
         with col1:
             smiles_val = st.text_input(
-                "Inserisci SMILES:",
-                value=st.session_state.get("active_smiles", "CCO"),
-                placeholder="Es. CC(=O)C per acetone, CCO per etanolo"
+                "Inserisci SMILES (premi Invio per applicare):",
+                key="smiles_text_field",
+                placeholder="Es. CC(=O)C per acetone, CCCC#N per butirronitrile"
             )
-            if smiles_val and smiles_val.strip() != st.session_state.get("active_smiles"):
-                st.session_state["active_smiles"] = smiles_val.strip()
-            smiles_input = st.session_state["active_smiles"]
+            clean_smi = smiles_val.strip() if smiles_val else ""
+            if clean_smi and clean_smi != current_active:
+                test_mol = Chem.MolFromSmiles(clean_smi)
+                if test_mol:
+                    st.session_state["active_smiles"] = clean_smi
+                    st.session_state["last_synced_smiles"] = clean_smi
+                    st.session_state["ketcher_version"] = st.session_state.get("ketcher_version", 0) + 1
+                    current_active = clean_smi
+                else:
+                    st.error("Stringa SMILES non valida. Verifica la formula inserita.")
+            
+            smiles_input = st.session_state.get("active_smiles", current_active)
+
         with col2:
             st.markdown("<br>", unsafe_allow_html=True)
             quick_mol = st.selectbox(
                 "Esempi rapidi:",
-                ["Etanolo (CCO)", "Acetone (CC(=O)C)", "Benzene (c1ccccc1)", "Toluene (Cc1ccccc1)", "Acido Acetico (CC(=O)O)"]
+                [
+                    "Etanolo (CCO)",
+                    "Acetone (CC(=O)C)",
+                    "Benzene (c1ccccc1)",
+                    "Toluene (Cc1ccccc1)",
+                    "Acido Acetico (CC(=O)O)",
+                    "Butirronitrile (CCCC#N)"
+                ],
+                key="quick_mol_select"
             )
-            if quick_mol:
+            if st.button("Carica Esempio", icon=":material/input:", use_container_width=True, key="btn_load_smiles_example"):
                 sample_smi = quick_mol.split("(")[-1].replace(")", "").strip()
-                if sample_smi != smiles_input:
-                    st.session_state["active_smiles"] = sample_smi
-                    smiles_input = sample_smi
-                    st.rerun()
+                st.session_state["active_smiles"] = sample_smi
+                st.session_state["smiles_text_field"] = sample_smi
+                st.session_state["last_synced_smiles"] = sample_smi
+                st.session_state["ketcher_version"] = st.session_state.get("ketcher_version", 0) + 1
+                st.rerun()
                     
         active_mol = Chem.MolFromSmiles(smiles_input) if smiles_input else None
         if active_mol:
             formula = rdMolDescriptors.CalcMolFormula(active_mol)
             st.markdown(
                 f"<div class='structure-card'>"
+                f"<b>Struttura attiva nel calcolo:</b> <code>{smiles_input}</code> &nbsp;|&nbsp; "
                 f"<b>Formula:</b> {formula} &nbsp;|&nbsp; <b>SMILES Canonico:</b> <code>{Chem.MolToSmiles(active_mol)}</code>"
                 f"</div>",
                 unsafe_allow_html=True
             )
+        elif smiles_input:
+            st.warning(f"SMILES inserito non valido: {smiles_input}")
 
     else:
         uploaded_file = st.file_uploader("Carica file molecolare (.xyz, .mol, .sdf)", type=["xyz", "mol", "sdf"])
